@@ -1,0 +1,73 @@
+"use client";
+import { FormEvent, useState } from "react";
+
+type Analysis = {
+  job_title:string; company:string; country:string; responsibilities:string[]; required_skills:string[];
+  education_mentions:string[]; experience_mentions:string[]; application_instructions:string[]; keywords:string[];
+  eligibility:{status:string;reason:string};
+  source_verification:{status:string;message:string;sources:unknown[]};
+  analysis_mode:string; notice?:string;
+};
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api";
+
+export default function Home() {
+  const [title,setTitle]=useState("Junior Data Analyst");
+  const [company,setCompany]=useState("");
+  const [country,setCountry]=useState("Bangladesh");
+  const [description,setDescription]=useState("");
+  const [result,setResult]=useState<Analysis|null>(null);
+  const [error,setError]=useState("");
+  const [loading,setLoading]=useState(false);
+
+  async function analyze(event:FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setLoading(true); setError(""); setResult(null);
+    try {
+      const response=await fetch(`${API_BASE}/jobs/analyze/`,{
+        method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({job_title:title,company,country,job_description:description})
+      });
+      const data=await response.json();
+      if(!response.ok) throw new Error(data.job_description?.[0]||data.detail||"Analysis failed. Check the API server.");
+      setResult(data as Analysis);
+    } catch(e) { setError(e instanceof Error?e.message:"Unexpected error."); }
+    finally { setLoading(false); }
+  }
+
+  return <main>
+    <header><div className="brand">✦ GLOBAL JOB INTELLIGENCE</div><span className="pill">EARLY MVP · v0.1</span></header>
+    <section><p className="pill">One profile. Every job understood.</p><h1>Apply with clarity, not guesswork.</h1>
+      <p className="lead">Analyze a vacancy, identify the skills it mentions, and prepare a more targeted application. This starter separates text extraction from independently verified employer rules.</p>
+    </section>
+    <div className="layout">
+      <section className="panel">
+        <h2>Analyze a job</h2><p className="hint">Paste a job description. This version accepts text; safe URL ingestion comes in a later milestone.</p>
+        <form onSubmit={analyze}>
+          <div className="grid2">
+            <div><label htmlFor="title">Job title</label><input id="title" value={title} onChange={e=>setTitle(e.target.value)} required maxLength={240}/></div>
+            <div><label htmlFor="company">Company</label><input id="company" value={company} onChange={e=>setCompany(e.target.value)} maxLength={240} placeholder="Optional"/></div>
+          </div>
+          <label htmlFor="country">Country / market</label><input id="country" value={country} onChange={e=>setCountry(e.target.value)} maxLength={100}/>
+          <label htmlFor="description">Job description</label><textarea id="description" value={description} onChange={e=>setDescription(e.target.value)} required minLength={30} maxLength={30000} placeholder="Paste responsibilities, qualifications, skills and application instructions..."/>
+          <button type="submit" disabled={loading}>{loading?"Analyzing…":"Analyze requirements →"}</button>
+          {error&&<p className="error" role="alert">{error}</p>}
+        </form>
+        {result&&<div className="result" aria-live="polite">
+          <h2>Analysis: {result.job_title}</h2><p className="small">Analysis mode: {result.analysis_mode}</p>
+          <div className="notice"><strong>Verification status: {result.source_verification.status}</strong><br/>{result.source_verification.message}</div>
+          <h3>Skills mentioned</h3>
+          {result.required_skills.length?<div className="tags">{result.required_skills.map(s=><span className="tag" key={s}>{s}</span>)}</div>:<p className="small">No skills were confidently extracted. Review the job text manually.</p>}
+          <h3>Education mentions</h3><ul>{result.education_mentions.length?result.education_mentions.map(x=><li key={x}>{x}</li>):<li>No explicit education phrase extracted.</li>}</ul>
+          <h3>Experience mentions</h3><ul>{result.experience_mentions.length?result.experience_mentions.map(x=><li key={x}>{x}</li>):<li>No explicit years-of-experience phrase extracted.</li>}</ul>
+          <h3>Eligibility</h3><p>{result.eligibility.status}: {result.eligibility.reason}</p>
+          {result.notice&&<p className="notice">{result.notice}</p>}
+        </div>}
+      </section>
+      <aside className="panel">
+        <h2>What this MVP does</h2><ul><li>Extracts skills and common requirement phrases.</li><li>Uses an optional AI API with a fallback if unavailable.</li><li>Labels source verification as not verified until evidence is collected.</li><li>Returns structured data for later CV tailoring and document generation.</li></ul>
+        <h2 style={{marginTop:28}}>What it does not claim</h2><ul><li>It does not predict whether an employer will hire you.</li><li>It does not independently verify company or immigration rules yet.</li><li>It does not invent qualifications missing from your profile.</li></ul>
+        <p className="small">Next: profile and authentication → evidence-backed rule registry → CV/cover-letter generator → DOCX/PDF export → application tracker → deployment hardening.</p>
+      </aside>
+    </div>
+    <p className="small" style={{marginTop:24}}>Prototype only. Do not paste highly sensitive personal data into an unreviewed deployment. This local starter does not store analysis results by default.</p>
+  </main>;
+}
